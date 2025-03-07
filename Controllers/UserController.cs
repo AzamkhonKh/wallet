@@ -1,6 +1,7 @@
 namespace WalletNet.Controllers;
 
 using WalletNet.Models;
+using WalletNet.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
@@ -10,7 +11,7 @@ using WalletNet.DTOs;
 using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.BlazorIdentity.Pages.Manage;
 using WalletNet.Services;
 
-[Route("api/[controller]")]
+[Route("api/user")]
 [ApiController]
 public class UserController : ControllerBase
 {
@@ -38,23 +39,6 @@ public class UserController : ControllerBase
             return NotFound();
         }
         return user;
-    }
-
-    // POST: api/user
-    [HttpPost]
-    public async Task<ActionResult<User>> UserDTO(UserDTO UserDTORequest)
-    {
-        var passwordService = new PasswordService();
-        var hashedPassword = passwordService.HashPassword(UserDTORequest.Password);
-        User user = new User
-        {
-            Username = UserDTORequest.Username,
-            Email = UserDTORequest.Email,
-            Password = hashedPassword
-        };
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user);
     }
 
     // PUT: api/user/5

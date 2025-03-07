@@ -1,12 +1,10 @@
 namespace WalletNet.Controllers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using System;
 using System.IO;
 using System.Threading.Tasks;
 using Tesseract;
 using System.Diagnostics;
-using System.Drawing;
 using SkiaSharp;
 
 [Route("api/ocr")]
@@ -18,7 +16,7 @@ public class OcrController : ControllerBase
     {
 
     }
-    private readonly string _tessDataPath = "/opt/homebrew/Cellar/tesseract/5.5.0/share/tessdata";
+    // private readonly string _tessDataPath = "/opt/homebrew/Cellar/tesseract/5.5.0/share/tessdata";
     private readonly string _tesseractPath = "/opt/homebrew/bin/tesseract";
     [HttpPost]
     public async Task<IActionResult> ExtractText(IFormFile image)
@@ -67,9 +65,6 @@ public class OcrController : ControllerBase
             await image.CopyToAsync(stream);
         }
 
-        DocumentScannerService scanner = new DocumentScannerService();
-        ReceiptDetectionService receipt = new ReceiptDetectionService();
-
         string outputImagePath = Path.Combine(Directory.GetCurrentDirectory(), "output", "cropped_" + image.FileName);
         string outputImagePath1 = Path.Combine(Directory.GetCurrentDirectory(), "output", "cropped1_" + image.FileName);
 
@@ -80,11 +75,9 @@ public class OcrController : ControllerBase
 
         // Provide the image path to crop the receipt
         // SKBitmap croppedImage = _receiptCropService.CropReceipt(tempFilePath, outputImagePath);
-        bool success = scanner.CropDocument(tempFilePath, outputImagePath1);
 
-        await receipt.DetectAndCropReceiptAsync(tempFilePath, outputImagePath);
 
-        return Ok(new { message = "Receipt cropped successfully.", outputPath = outputImagePath, success = success });
+        return Ok(new { message = "Receipt cropped successfully.", outputPath = outputImagePath, success = false });
     }
     private string RunTesseract(string imagePath)
     {
@@ -99,7 +92,7 @@ public class OcrController : ControllerBase
         };
 
         // Start the process and read the output
-        using (Process process = Process.Start(startInfo))
+        using (Process? process = Process.Start(startInfo))
         using (StreamReader reader = process.StandardOutput)
         {
             string result = reader.ReadToEnd();  // Capture the text output

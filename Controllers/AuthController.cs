@@ -1,69 +1,145 @@
-namespace WalletNet.Controllers;
-
-using WalletNet.Models;
-using Microsoft.AspNetCore.Mvc;
+using WalletNet.DTOs;
 using WalletNet.Services;
-using Microsoft.AspNetCore.Http;
-using System.Linq;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 
-[Route("api/auth")]
-[ApiController]
-public class AuthController : ControllerBase
+namespace WalletNet.Controllers
 {
-    private readonly ApplicationDbContext _dbContext;
-    private readonly TokenService _tokenService;
-
-    public AuthController(ApplicationDbContext dbContext, TokenService tokenService)
+    [Route("api/[controller]")]
+    [ApiController]
+    public class AuthController : ControllerBase
     {
-        _dbContext = dbContext;
-        _tokenService = tokenService;
-    }
+        private readonly IAuthService _authService;
 
-    [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
-    {
-        var user = _dbContext.Users.FirstOrDefault(u => u.Username == request.Username);
-
-        if (user == null || !VerifyPassword(request.Password, user.Password))
+        public AuthController(IAuthService authService)
         {
-            return Unauthorized("Invalid credentials");
+            _authService = authService;
         }
 
-        // Get client metadata
-        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString();
-        var userAgent = Request.Headers["User-Agent"].ToString();
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] RegisterDTO model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
 
-        // Generate token and store it
-        var token = await _tokenService.GenerateTokenAsync(user, clientIp, userAgent);
+            var result = await _authService.RegisterAsync(model);
+            if (!result.IsSuccess)
+            {
+                return BadRequest(result);
+            }
 
-        return Ok(new { Token = token });
+            return Ok(result);
+        }
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginDTO model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _authService.LoginAsync(model);
+            if (!result.IsSuccess)
+            {
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
+
+        [HttpPost("verify-otp")]
+        public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpDTO model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _authService.VerifyOtpAsync(model);
+            if (!result.IsSuccess)
+            {
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
+
+        [HttpPost("google-login")]
+        public async Task<IActionResult> GoogleLogin([FromBody] ExternalAuthDTO model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _authService.GoogleLoginAsync(model);
+            if (!result.IsSuccess)
+            {
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
+
+        [HttpPost("refresh-token")]
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDTO model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _authService.RefreshTokenAsync(model);
+            if (!result.IsSuccess)
+            {
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
+
+        [Authorize]
+        [HttpPost("revoke-token")]
+        public async Task<IActionResult> RevokeToken([FromBody] RefreshTokenDTO model)
+        {
+            if (string.IsNullOrEmpty(model.RefreshToken))
+            {
+                return BadRequest(new { Message = "Token is required" });
+            }
+
+            var result = await _authService.RevokeTokenAsync(model.RefreshToken);
+            if (!result)
+            {
+                return BadRequest(new { Message = "Token is invalid" });
+            }
+
+            return Ok(new { Message = "Token revoked" });
+        }
+
+        [HttpPost("resend-otp")]
+        public async Task<IActionResult> ResendOtp([FromBody] EmailDTO model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _authService.SendOtpAsync(model.Email);
+            if (!result)
+            {
+                return BadRequest(new { Message = "Failed to send OTP" });
+            }
+
+            return Ok(new { Message = "OTP sent successfully" });
+        }
     }
 
-    [HttpPost("logout")]
-    public async Task<IActionResult> Logout([FromBody] RevokeTokenRequest request)
+    public class EmailDTO
     {
-        var success = await _tokenService.RevokeTokenAsync(request.Token);
-        if (!success)
-            return BadRequest("Invalid token");
-
-        return Ok("Token revoked");
+        public string Email { get; set; }
     }
-
-    private bool VerifyPassword(string inputPassword, string storedHash)
-    {
-        // Implement password verification logic here
-        return inputPassword == storedHash;
-    }
-}
-
-public class LoginRequest
-{
-    public string Username { get; set; }
-    public string Password { get; set; }
-}
-
-public class RevokeTokenRequest
-{
-    public string Token { get; set; }
 }

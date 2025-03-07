@@ -1,3 +1,4 @@
+namespace WalletNet.Data;
 using Microsoft.EntityFrameworkCore;
 using WalletNet.Models;
 using Microsoft.AspNetCore.OpenApi;
@@ -10,11 +11,13 @@ public class ApplicationDbContext : DbContext
     // Define DbSets (tables) here
     public DbSet<User> Users { get; set; }
     public DbSet<Token> Tokens { get; set; }
-    public DbSet<TodoItem> TodoItems { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
+    public DbSet<Transaction> Transactions { get; set; }
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<User>().HasMany(u => u.Tokens).WithOne(t => t.User).HasForeignKey(t => t.UserId);
+        modelBuilder.Entity<User>().HasMany(u => u.RefreshTokens).WithOne(t => t.User).HasForeignKey(t => t.UserId);
     }
 }
 internal sealed class BearerSecuritySchemeTransformer(Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider authenticationSchemeProvider) : IOpenApiDocumentTransformer

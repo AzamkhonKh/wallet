@@ -18,7 +18,7 @@ public class ReceiptController : ControllerBase
     private readonly string _outputDirectory;
     private readonly string[] _classNames = new string[]
     {
-            "Address", "Date", "Item", "OrderId", "Subtotal", "Tax", "Title", "TotalPrice"
+        "Address", "Date", "Item", "OrderId", "Subtotal", "Tax", "Title", "TotalPrice"
     };
 
     public ReceiptController(ILogger<ReceiptController> logger, IConfiguration configuration)
@@ -88,77 +88,80 @@ public class ReceiptController : ControllerBase
             swapRB: true,
             crop: false);
 
-        // Set input to the network
-        net.SetInput(inputBlob);
-
-        // Run forward pass to get output
-        using var output = net.Forward();
-
-        // Process YOLO output and extract bounding boxes
         var result = new Dictionary<string, string>();
-
-        // YOLOv8 output format: [xywh, confidence, class1, class2, ...]
-        // Format is different than YOLOv5, v8 returns a tensor of shape [batch, num_boxes, num_classes+4]
-        int rows = output.Size(1);
-        int dimensions = output.Size(2);
-
-        // Assuming output shape is [1, num_boxes, num_classes+4]
-        for (int i = 0; i < rows; i++)
+        // Set input to the network
+        if (net != null)
         {
-            float[] rowData = new float[dimensions];
-            for (int j = 0; j < dimensions; j++)
-            {
-                rowData[j] = output.At<float>(0, i, j);
-            }
+            net.SetInput(inputBlob);
+            using var output = net.Forward();
+            // Run forward pass to get output
 
-            // First 4 values are x, y, w, h
-            float x = rowData[0];
-            float y = rowData[1];
-            float width = rowData[2];
-            float height = rowData[3];
+            // Process YOLO output and extract bounding boxes
 
-            // Find the class with highest confidence
-            int classId = -1;
-            float maxConfidence = 0;
-            for (int j = 4; j < dimensions; j++)
+            // YOLOv8 output format: [xywh, confidence, class1, class2, ...]
+            // Format is different than YOLOv5, v8 returns a tensor of shape [batch, num_boxes, num_classes+4]
+            int rows = output.Size(1);
+            int dimensions = output.Size(2);
+
+
+            // Assuming output shape is [1, num_boxes, num_classes+4]
+            for (int i = 0; i < rows; i++)
             {
-                if (rowData[j] > maxConfidence)
+                float[] rowData = new float[dimensions];
+                for (int j = 0; j < dimensions; j++)
                 {
-                    maxConfidence = rowData[j];
-                    classId = j - 4;
+                    rowData[j] = output.At<float>(0, i, j);
                 }
-            }
 
-            // Set confidence threshold
-            if (maxConfidence > 0.25 && classId >= 0 && classId < _classNames.Length)
-            {
-                // Convert normalized coordinates to actual pixels
-                // YOLOv8 gives center, width, height - convert to topleft, bottomright
-                int centerX = (int)(x * image.Width);
-                int centerY = (int)(y * image.Height);
-                int rectWidth = (int)(width * image.Width);
-                int rectHeight = (int)(height * image.Height);
+                // First 4 values are x, y, w, h
+                float x = rowData[0];
+                float y = rowData[1];
+                float width = rowData[2];
+                float height = rowData[3];
 
-                int left = Math.Max(0, centerX - rectWidth / 2);
-                int top = Math.Max(0, centerY - rectHeight / 2);
-                int right = Math.Min(image.Width, centerX + rectWidth / 2);
-                int bottom = Math.Min(image.Height, centerY + rectHeight / 2);
+                // Find the class with highest confidence
+                int classId = -1;
+                float maxConfidence = 0;
+                for (int j = 4; j < dimensions; j++)
+                {
+                    if (rowData[j] > maxConfidence)
+                    {
+                        maxConfidence = rowData[j];
+                        classId = j - 4;
+                    }
+                }
 
-                // Create a rectangle
-                var rect = new Rect(left, top, right - left, bottom - top);
+                // Set confidence threshold
+                if (maxConfidence > 0.25 && classId >= 0 && classId < _classNames.Length)
+                {
+                    // Convert normalized coordinates to actual pixels
+                    // YOLOv8 gives center, width, height - convert to topleft, bottomright
+                    int centerX = (int)(x * image.Width);
+                    int centerY = (int)(y * image.Height);
+                    int rectWidth = (int)(width * image.Width);
+                    int rectHeight = (int)(height * image.Height);
 
-                // Crop the ROI
-                using var croppedImage = new Mat(image, rect);
+                    int left = Math.Max(0, centerX - rectWidth / 2);
+                    int top = Math.Max(0, centerY - rectHeight / 2);
+                    int right = Math.Min(image.Width, centerX + rectWidth / 2);
+                    int bottom = Math.Min(image.Height, centerY + rectHeight / 2);
 
-                // Save the cropped image
-                string className = _classNames[classId];
-                string outputFileName = $"{className}_{i}.jpg";
-                string outputPath = Path.Combine(outputDirectory, outputFileName);
-                Cv2.ImWrite(outputPath, croppedImage);
+                    // Create a rectangle
+                    var rect = new Rect(left, top, right - left, bottom - top);
 
-                // Add to result dictionary (using the relative path for API response)
-                string relativePath = Path.Combine(Path.GetFileName(outputDirectory), outputFileName);
-                result[className] = relativePath.Replace("\\", "/");
+                    // Crop the ROI
+                    using var croppedImage = new Mat(image, rect);
+
+                    // Save the cropped image
+                    string className = _classNames[classId];
+                    string outputFileName = $"{className}_{i}.jpg";
+                    string outputPath = Path.Combine(outputDirectory, outputFileName);
+                    Cv2.ImWrite(outputPath, croppedImage);
+
+                    // Add to result dictionary (using the relative path for API response)
+                    string relativePath = Path.Combine(Path.GetFileName(outputDirectory), outputFileName);
+                    result[className] = relativePath.Replace("\\", "/");
+                }
             }
         }
 

@@ -129,7 +129,7 @@ public class ReceiptDetectionService
 
         // Find the largest rectangle-like contour
         double maxArea = 0;
-        Point[] receiptContour = null;
+        Point[]? receiptContour = null;
 
         foreach (var contour in contours)
         {
