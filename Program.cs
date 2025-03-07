@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
 using WalletNet.Services;
+using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
