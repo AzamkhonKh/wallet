@@ -1,104 +1,133 @@
-namespace wallet_net.Controllers;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using WalletNet.Models;
-using WalletNet.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using WalletNet.DTOs;     // For Transaction DTOs
+using WalletNet.Models;    // For User model
+using WalletNet.Services;  // For ITransactionService
 
-[Route("api/transaction")]
-[ApiController]
-[Authorize]
-public class TransactionController : ControllerBase
+namespace WalletNet.Controllers
 {
-    private readonly ApplicationDbContext _context;
-
-    public TransactionController(ApplicationDbContext context)
+    [Authorize]
+    [Route("api/transactions")] // Changed route
+    [ApiController]
+    public class TransactionController : ControllerBase
     {
-        _context = context;
-    }
+        private readonly ITransactionService _transactionService;
+        // UserManager might not be strictly needed if all user-related logic is in GetCurrentUserId
+        // and the service handles user authorization based on userId.
+        // private readonly UserManager<User> _userManager; 
 
-    // GET: api/Transactions
-    [HttpGet]
-    [AllowAnonymous]
-    public async Task<ActionResult<IEnumerable<Transaction>>> GetTransactions()
-    {
-        return await _context.Transactions.ToListAsync();
-    }
-
-    // GET: api/Transactions/5
-    [HttpGet("{id}")]
-    public async Task<ActionResult<Transaction>> GetTransaction(long id)
-    {
-        var Transaction = await _context.Transactions.FindAsync(id);
-
-        if (Transaction == null)
+        public TransactionController(ITransactionService transactionService) // UserManager<User> userManager)
         {
-            return NotFound();
+            _transactionService = transactionService;
+            // _userManager = userManager;
         }
 
-        return Transaction;
-    }
-
-    // PUT: api/Transactions/5
-    // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-    [HttpPut("{id}")]
-    public async Task<IActionResult> PutTransaction(long id, Transaction Transaction)
-    {
-        if (id != Transaction.Id)
+        private int GetCurrentUserId()
         {
-            return BadRequest();
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
+            {
+                throw new InvalidOperationException("User ID not found or invalid in token.");
+            }
+            return userId;
         }
 
-        _context.Entry(Transaction).State = EntityState.Modified;
-
-        try
+        // GET: api/transactions/user
+        [HttpGet("user")]
+        public async Task<ActionResult<IEnumerable<TransactionResponseDto>>> GetUserTransactions()
         {
-            await _context.SaveChangesAsync();
+            var userId = GetCurrentUserId();
+            var transactions = await _transactionService.GetTransactionsByUserIdAsync(userId);
+            return Ok(transactions);
         }
-        catch (DbUpdateConcurrencyException)
+
+        // GET: api/transactions/space/{spaceId}
+        [HttpGet("space/{spaceId}")]
+        public async Task<ActionResult<IEnumerable<TransactionResponseDto>>> GetSpaceTransactions(int spaceId)
         {
-            if (!TransactionExists(id))
+            var userId = GetCurrentUserId();
+            var transactions = await _transactionService.GetTransactionsBySpaceIdAsync(spaceId, userId);
+            // The service should handle if the user is not authorized for the space,
+            // potentially returning an empty list or the GetTransactionsBySpaceIdAsync could throw/return null.
+            // If it returns null (or an empty list when not found/authorized), Ok(transactions) is fine.
+            return Ok(transactions);
+        }
+        
+        // GET: api/transactions/{id}
+        [HttpGet("{id}")]
+        public async Task<ActionResult<TransactionResponseDto>> GetTransaction(int id)
+        {
+            var userId = GetCurrentUserId();
+            var transaction = await _transactionService.GetTransactionByIdAsync(id, userId);
+
+            if (transaction == null)
             {
                 return NotFound();
             }
-            else
-            {
-                throw;
-            }
+            return Ok(transaction);
         }
 
-        return NoContent();
-    }
-
-    // POST: api/Transactions
-    // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-    [HttpPost]
-    public async Task<ActionResult<Transaction>> PostTransaction(Transaction Transaction)
-    {
-        _context.Transactions.Add(Transaction);
-        await _context.SaveChangesAsync();
-
-        return CreatedAtAction("GetTransaction", new { id = Transaction.Id }, Transaction);
-    }
-
-    // DELETE: api/Transactions/5
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteTransaction(long id)
-    {
-        var Transaction = await _context.Transactions.FindAsync(id);
-        if (Transaction == null)
+        // POST: api/transactions
+        [HttpPost]
+        public async Task<ActionResult<TransactionResponseDto>> CreateTransaction([FromForm] TransactionCreateDto transactionCreateDto)
         {
-            return NotFound();
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var userId = GetCurrentUserId();
+            var createdTransaction = await _transactionService.CreateTransactionAsync(transactionCreateDto, userId);
+
+            if (createdTransaction == null)
+            {
+                // This could happen if, for example, SpaceId is invalid or doesn't belong to user
+                return BadRequest("Could not create transaction. Invalid SpaceId or other parameters.");
+            }
+            
+            return CreatedAtAction(nameof(GetTransaction), new { id = createdTransaction.Id }, createdTransaction);
         }
 
-        _context.Transactions.Remove(Transaction);
-        await _context.SaveChangesAsync();
+        // PUT: api/transactions/{id}
+        [HttpPut("{id}")]
+        public async Task<ActionResult<TransactionResponseDto>> UpdateTransaction(int id, [FromForm] TransactionUpdateDto transactionUpdateDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
 
-        return NoContent();
-    }
+            var userId = GetCurrentUserId();
+            var updatedTransaction = await _transactionService.UpdateTransactionAsync(id, transactionUpdateDto, userId);
 
-    private bool TransactionExists(long id)
-    {
-        return _context.Transactions.Any(e => e.Id == id);
+            if (updatedTransaction == null)
+            {
+                return NotFound(); // Or BadRequest if validation failed within the service
+            }
+            
+            return Ok(updatedTransaction); // Return the updated transaction
+        }
+
+        // DELETE: api/transactions/{id}
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteTransaction(int id)
+        {
+            var userId = GetCurrentUserId();
+            var success = await _transactionService.DeleteTransactionAsync(id, userId);
+
+            if (!success)
+            {
+                return NotFound();
+            }
+
+            return NoContent();
+        }
     }
 }

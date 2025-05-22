@@ -14,6 +14,15 @@ public class User : IdentityUser
     public string OtpCode { get; set; }
     public DateTime? OtpExpiration { get; set; }
     public virtual ICollection<RefreshToken> RefreshTokens { get; set; }
+    public virtual ICollection<BudgetMaster.Models.Space> Spaces { get; set; } // Added using fully qualified name
+    public virtual ICollection<Transaction> Transactions { get; set; } // Added Transactions collection
+
+    public User() // Added constructor if not present, or added to existing
+    {
+        RefreshTokens = new HashSet<RefreshToken>(); // Assuming this was initialized, if not, it should be
+        Spaces = new HashSet<BudgetMaster.Models.Space>();
+        Transactions = new HashSet<Transaction>(); // Initialized Transactions collection
+    }
 }
 
 public class RefreshToken
