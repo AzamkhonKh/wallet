@@ -2,18 +2,21 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using WalletNet.Data;
 
 #nullable disable
 
-namespace wallet_net.Migrations
+namespace wallet_net.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250522095757_CreateSpaceEntity")]
+    partial class CreateSpaceEntity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -125,32 +128,16 @@ namespace wallet_net.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("Category")
+                    b.Property<string>("Name")
+                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PhotoPath")
-                        .HasColumnType("text");
-
-                    b.Property<int>("SpaceId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UserId")
+                    b.Property<int?>("SpaceId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
                     b.HasIndex("SpaceId");
-
-                    b.HasIndex("UserId");
 
                     b.ToTable("Transactions");
                 });
@@ -266,21 +253,9 @@ namespace wallet_net.Migrations
 
             modelBuilder.Entity("WalletNet.Models.Transaction", b =>
                 {
-                    b.HasOne("BudgetMaster.Models.Space", "Space")
+                    b.HasOne("BudgetMaster.Models.Space", null)
                         .WithMany("Transactions")
-                        .HasForeignKey("SpaceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("WalletNet.Models.User", "User")
-                        .WithMany("Transactions")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Space");
-
-                    b.Navigation("User");
+                        .HasForeignKey("SpaceId");
                 });
 
             modelBuilder.Entity("BudgetMaster.Models.Space", b =>
@@ -293,8 +268,6 @@ namespace wallet_net.Migrations
                     b.Navigation("RefreshTokens");
 
                     b.Navigation("Spaces");
-
-                    b.Navigation("Transactions");
                 });
 #pragma warning restore 612, 618
         }

@@ -78,6 +78,9 @@ public class Startup
         // Register Services
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<ISpaceService, SpaceService>(); // Added SpaceService registration
+        services.AddScoped<ITransactionService, TransactionService>(); // Added TransactionService registration
+        services.AddScoped<ReceiptDetectionService>(); // Added ReceiptDetectionService registration
 
         // CORS configuration
         services.AddCors(options =>
